@@ -122,7 +122,7 @@ void virtio_blk_commit_temp_list(void* opaque)
     if (temp_list != NULL) {
         VirtIOBlock *s = global_virtio_block;
         ReqRecordCommit *c;
-        QTAILQ_INSERT_TAIL(&s->record_list, temp_list, node);
+        //QTAILQ_INSERT_TAIL(&s->record_list, temp_list, node);
         c = g_malloc(sizeof(ReqRecordCommit));
         c->req = temp_list;
         c->bh = qemu_bh_new(virtio_blk_flush_bh, c);
@@ -150,6 +150,7 @@ static void virtio_blk_free_request(VirtIOBlockReq *req)
     }
 }
 
+/*
 static void virtio_blk_complete_head(VirtIOBlockReq *req)
 {
     VirtIOBlock *s = global_virtio_block;
@@ -169,6 +170,24 @@ static void virtio_blk_complete_head(VirtIOBlockReq *req)
             g_free(rec);
         }
     }
+}
+*/
+
+static void virtio_blk_pending_wreq_complete(VirtIOBlockReq *req) {
+        Wreqrecord *wrq;
+        VirtIOBlock *s = req->dev;
+
+        QTAILQ_FOREACH(wrq,&s->pending_wrq,node) {
+                if(!wrq)
+                        return;
+                if(wrq->reqs == req) {
+						printf("%s\n",__func__);
+                        QTAILQ_REMOVE(&s->pending_wrq,wrq,node);
+                        free(wrq);
+                        --s->pending_wlen;
+                        return;
+                }
+        }
 }
 
 static void virtio_blk_pending_req_complete(VirtIOBlockReq *req)
@@ -232,7 +251,8 @@ static void virtio_blk_req_complete(VirtIOBlockReq *req, unsigned char status)
 
     // For CUJU-FT
     virtio_blk_pending_req_complete(req);
-    virtio_blk_complete_head(req);
+    //virtio_blk_complete_head(req);
+	virtio_blk_pending_wreq_complete(req);
 }
 
 static int virtio_blk_handle_rw_error(VirtIOBlockReq *req, int error,
@@ -372,7 +392,7 @@ static VirtIOBlockReq *virtio_blk_alloc_request(VirtIOBlock *s)
     return req;
 }
 */
-
+#if 0
 static VirtIOBlockReq *virtio_blk_get_request_from_head(VirtIODevice *vdev, unsigned int head, unsigned int idx)
 {
     VirtIOBlock *s = VIRTIO_BLK(vdev);
@@ -424,6 +444,7 @@ static VirtIOBlockReq *virtio_blk_get_request_from_head(VirtIODevice *vdev, unsi
 
     return req;
 }
+#endif
 
 static VirtIOBlockReq *virtio_blk_get_request(VirtIOBlock *s, VirtQueue *vq, unsigned int *out_head)
 {
@@ -795,6 +816,16 @@ static int virtio_blk_handle_request(VirtIOBlockReq *req, MultiReqBuffer *mrb, u
 				extern kvmft_notify_new_output();
 				kvmft_notify_new_output();
 #endif
+				Wreqrecord *wrq;
+				printf("%s\n",__func__);
+
+                wrq = g_malloc0(sizeof(Wreqrecord));
+                wrq->reqs = req;
+                wrq->list = head;
+                wrq->idx =  virtio_get_queue_index(req->vq);
+                QTAILQ_INSERT_TAIL(&s->pending_wrq,wrq,node);
+                ++s->pending_wlen;
+
                 break;
 			}
         } else {
@@ -1113,10 +1144,11 @@ static void virtio_blk_save_device(VirtIODevice *vdev, QEMUFile *f)
     VirtIOBlock *s = VIRTIO_BLK(vdev);
 
     VirtIOBlockReq *req = s->rq;
-    ReqRecord *rec;
+    //ReqRecord *rec;
     int i;
 
     // send temp_list and record_list to slave.
+	/*
     QTAILQ_FOREACH(rec, &s->record_list, node) {
         int nsend = 0; // debugging
         qemu_put_sbyte(f, 3);
@@ -1130,6 +1162,7 @@ static void virtio_blk_save_device(VirtIODevice *vdev, QEMUFile *f)
         }
         assert(nsend==rec->left);
     }
+	*/
     if (s->temp_list && s->temp_list->len > 0) {
         qemu_put_sbyte(f, 3);
         qemu_put_be32(f, s->temp_list->len);
@@ -1184,7 +1217,7 @@ static int virtio_blk_load_device(VirtIODevice *vdev, QEMUFile *f,
                                   int version_id)
 {
     VirtIOBlock *s = VIRTIO_BLK(vdev);
-    int t, i;
+    int t;
 
     MultiReqBuffer mrb = {
         .num_reqs = 0,
@@ -1245,7 +1278,9 @@ static int virtio_blk_load_device(VirtIODevice *vdev, QEMUFile *f,
 
             virtio_blk_handle_request(req, &mrb, 0);
             printf("%s pending read request %p added\n", __func__, req);
-        } else if (t == 3) {
+        } 
+		/*
+		else if (t == 3) {
             int len = qemu_get_be32(f);
             if (len > 0) {
                 for (i = 0; i < len; i++) {
@@ -1258,7 +1293,9 @@ static int virtio_blk_load_device(VirtIODevice *vdev, QEMUFile *f,
                     blk_io_unplug(s->blk);
                 }
             }
-        } else {
+        }
+		*/ 
+		else {
             assert(0);
         }
     }
@@ -1335,7 +1372,8 @@ static void virtio_blk_device_realize(DeviceState *dev, Error **errp)
     // For CUJU-FT
     global_virtio_block = s;
     s->temp_list = NULL;
-    QTAILQ_INIT(&s->record_list);
+    //QTAILQ_INIT(&s->record_list);
+	QTAILQ_INIT(&s->pending_wrq);
 }
 
 static void virtio_blk_device_unrealize(DeviceState *dev, Error **errp)

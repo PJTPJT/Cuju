@@ -56,6 +56,15 @@ typedef struct ReqRecord {
 
 typedef QTAILQ_HEAD(, ReqRecord) ReqRecordList;
 
+typedef struct WReqrecord {
+	int list;
+    int idx;
+    void *reqs;
+    QTAILQ_ENTRY(WReqrecord) node;
+} Wreqrecord;
+
+typedef QTAILQ_HEAD(, WReqrecord) WReqList;
+
 struct VirtIOBlockReq;
 typedef struct VirtIOBlock {
     VirtIODevice parent_obj;
@@ -73,7 +82,9 @@ typedef struct VirtIOBlock {
     // For CUJU-FT
     void *pending_rq;   // pending requests
     ReqRecord *temp_list;
-    ReqRecordList record_list;
+    //ReqRecordList record_list;
+	WReqList pending_wrq;   // pending write request
+    int pending_wlen;
 
 } VirtIOBlock;
 
