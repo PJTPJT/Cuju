@@ -179,10 +179,10 @@ static void cuju_socket_start_outgoing_migration(MigrationState *s,
                                             Error **errp)
 {
     MigrationState *s2 = migrate_by_index(1);
-    QIOChannelSocket *sioc[4];
-    const char *channel_name[4] = {"cuju-dev-outgoing1", "cuju-ram-outgoing1", "cuju-dev-outgoing2", "cuju-ram-outgoing2"};
-    struct SocketConnectData *data[4];
-    for (int i=0; i<4; i++) {
+    QIOChannelSocket *sioc[5];
+    const char *channel_name[5] = {"cuju-dev-outgoing1", "cuju-ram-outgoing1", "cuju-dev-outgoing2", "cuju-ram-outgoing2","live-migration-tmp"};
+    struct SocketConnectData *data[5];
+    for (int i=0; i<5; i++) {
         sioc[i] = qio_channel_socket_new();
         data[i] = g_new0(struct SocketConnectData, 1);
         data[i]->s = s;
@@ -217,7 +217,7 @@ static void cuju_socket_start_outgoing_migration(MigrationState *s,
 
     cuju_migration_channel_connect(data[0]->s, sioc, data[0]->hostname);
 out:
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<5; i++) {
         object_unref(OBJECT(sioc[i]));
         socket_connect_data_free(data[i]);
     }
@@ -330,12 +330,13 @@ static gboolean cuju_socket_accept_incoming_migration(QIOChannel *ioc,
                                                  GIOCondition condition,
                                                  gpointer opaque)
 {
-    QIOChannelSocket *sioc[4];
+    QIOChannelSocket *sioc[5];
     Error *err = NULL;
-    const char *channel_name[4] = {"cuju-dev-incoming1", "cuju-ram-incoming1",
-                                "cuju-dev-incoming2", "cuju-ram-incoming2"};
+    const char *channel_name[5] = {"cuju-dev-incoming1", "cuju-ram-incoming1",
+                                "cuju-dev-incoming2", "cuju-ram-incoming2",
+								"live-migration-tmp"};
 
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<5; i++) {
         sioc[i] = qio_channel_socket_accept(QIO_CHANNEL_SOCKET(ioc),
                                      &err);
         if (!sioc[i]) {

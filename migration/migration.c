@@ -531,11 +531,12 @@ static void process_incoming_migration_co(void *opaque)
         QEMUFile **tmp = opaque;
         f = tmp[0];
         mis = migration_incoming_state_new(f);
-        mis->cuju_file = g_malloc(4 * sizeof(QEMUFile*));
+        mis->cuju_file = g_malloc(5 * sizeof(QEMUFile*));
         mis->cuju_file[0] = tmp[0];
         mis->cuju_file[1] = tmp[1];
         mis->cuju_file[2] = tmp[2];
         mis->cuju_file[3] = tmp[3];
+		mis->cuju_file[4] = tmp[4];
     }
     else {
         f = opaque;
@@ -622,7 +623,7 @@ void cuju_migration_fd_process_incoming(QEMUFile **f)
     Coroutine *co = qemu_coroutine_create(process_incoming_migration_co, f);
 
     migrate_decompress_threads_create();
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<5; i++) {
         qemu_file_set_blocking(f[i], false);
     }
     qemu_coroutine_enter(co);
@@ -652,7 +653,7 @@ void migration_channel_process_incoming(MigrationState *s,
 void cuju_migration_channel_process_incoming(MigrationState *s,
                                         QIOChannelSocket **ioc)
 {
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<5; i++) {
         trace_migration_set_incoming_channel(
             QIO_CHANNEL(ioc[i]), object_get_typename(OBJECT(QIO_CHANNEL(ioc[i]))));
     }
@@ -667,8 +668,8 @@ void cuju_migration_channel_process_incoming(MigrationState *s,
             error_report_err(local_err);
         }
     } else {
-        QEMUFile *f[4];
-        for (int i=0; i<4; i++) {
+        QEMUFile *f[5];
+        for (int i=0; i<5; i++) {
             f[i] = qemu_fopen_channel_input(QIO_CHANNEL(ioc[i]));
         }
         cuju_migration_fd_process_incoming(f);
@@ -707,7 +708,8 @@ void cuju_migration_channel_connect(MigrationState *s,
                                const char *hostname)
 {
     MigrationState *s2 = migrate_by_index(1);
-    for (int i=0; i<4; i++) {
+
+    for (int i=0; i<5; i++) {
         trace_migration_set_outgoing_channel(
             ioc[i], object_get_typename(OBJECT(ioc[i])), hostname);
     }
@@ -722,8 +724,8 @@ void cuju_migration_channel_connect(MigrationState *s,
             error_free(local_err);
         }
     } else {
-        QEMUFile *f[4];
-        for (int i=0; i<4; i++) {
+        QEMUFile *f[5];
+        for (int i=0; i<5; i++) {
             f[i] = qemu_fopen_channel_output(QIO_CHANNEL(ioc[i]));
         }
         QIOChannelSocket *sioc;
@@ -737,8 +739,7 @@ void cuju_migration_channel_connect(MigrationState *s,
         sioc = QIO_CHANNEL_SOCKET(f[3]->opaque);
         s2->ram_fds = g_malloc0(sizeof(int) * ft_ram_conn_count);
         s2->ram_fds[0] = sioc->fd;
-
-
+		
         s->to_dst_file = f[0];
 
         s->fs = f;
@@ -2577,6 +2578,7 @@ static void *migration_thread(void *opaque)
                &old_vm_running, &start_time);
 	}
 
+
     while (s->state == MIGRATION_STATUS_ACTIVE ||
            s->state == MIGRATION_STATUS_POSTCOPY_ACTIVE) {
         int64_t current_time;
@@ -2925,11 +2927,15 @@ void *cuju_process_incoming_thread(void *opaque)
     QEMUFile **fs = mis->cuju_file;
    	QEMUFile *f, *f2;
 	int s = qio_ft_sock_fd;
+	//int tmp_fd;
 
     cuju_ft_trans_init();
 
 	f = cuju_setup_slave_receiver(s, fs[0], fs[2]);
 	f2 = cuju_setup_slave_receiver(s, fs[1], fs[3]);
+	//tmp_fd = cuju_get_fd_from_QIOChannel(fs[4]->opaque); 
+    //qemu_set_nonblock(tmp_fd);
+    //qemu_set_fd_handler(tmp_fd, NULL, NULL, NULL);
 
 	// need to wait sender to setup
 	// send ack
