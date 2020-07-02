@@ -1232,6 +1232,16 @@ void kvmft_reset_put_off(MigrationState *s)
 	kvm_vm_ioctl(kvm_state, KVM_RESET_PUT_OFF, &cur_off);
 }
 
+int get_put_off(MigrationState *s){
+
+    int cur_off;
+    int put_off;
+    cur_off = s->cur_off;
+    put_off = kvm_vm_ioctl(kvm_state, KVM_GET_PUT_OFF, &cur_off);
+
+   return put_off;
+}
+
 static void load_8x8_page(char *host, char *buf, char *header, int size)
 {
     char h;

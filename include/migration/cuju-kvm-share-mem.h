@@ -53,9 +53,16 @@ int kvm_shmem_flip_sharing(int cur_index);
 
 int kvmft_fire_timer(int moff);
 void kvmft_reset_put_off(MigrationState *s);
+int get_put_off(MigrationState *s);
 void kvmft_assert_ram_hash_and_dlist(unsigned int *gfns, int size);
 void kvmft_update_epoch_flush_time(double time_s);
 void kvmft_update_epoch_flush_time_linear(double time_s);
+
+void write_additional_dirty_page(unsigned long start_gfn, unsigned long end_gfn);
+unsigned long find_max_ram_gfn(void);
+void find_vga_vram_gfn(unsigned long *start_gfn, unsigned long *end_gfn);
+void write_additional_dirty_page2(void);
+bool return_fake_ft_mode(void);
 
 void *kvm_shmem_alloc_trackable(unsigned int size);
 void kvm_shmem_free_trackable(void *ptr);

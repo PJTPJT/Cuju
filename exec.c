@@ -3871,4 +3871,96 @@ void kvmft_assert_ram_hash_and_dlist(unsigned int *gfns, int size)
     printf("%s good\n", __func__);
 #endif
 }
+
+unsigned long find_max_ram_gfn(void){
+
+    RAMBlock *block;
+    unsigned long gfn = 0;
+
+    qemu_mutex_lock_ramlist();
+
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
+        if (!memcmp(block->idstr, "pc.ram", 6)){
+			/*
+	        for (ii = 0; ii < block->used_length; ii += 4096) {
+            	gfn = (unsigned long)(block->offset + ii) >> TARGET_PAGE_BITS;
+        	}
+			*/
+			gfn = ((block->offset + block->used_length) >> TARGET_PAGE_BITS)-1;
+		}
+        //printf("block->idstr = %s, block start gfn = %lu, gfn = %lu\n", block->idstr, (block->offset >> TARGET_PAGE_BITS), gfn);
+       //printf("test final gfn = %lu\n", ((block->offset + block->used_length) >> TARGET_PAGE_BITS)-1);
+    }
+
+    qemu_mutex_unlock_ramlist();
+
+    printf("ram final gfn = %lu\n", gfn);
+
+	return gfn;
+}
+
+void find_vga_vram_gfn(unsigned long *start_gfn, unsigned long *end_gfn){
+
+    RAMBlock *block;
+
+    qemu_mutex_lock_ramlist();
+
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
+        if (!memcmp(block->idstr, "vga.vram", 8)){
+			/*
+            for (ii = 0; ii < block->used_length; ii += 4096) {
+                gfn = (unsigned long)(block->offset + ii) >> TARGET_PAGE_BITS;
+            }
+			*/
+			*start_gfn = (block->offset >> TARGET_PAGE_BITS);
+			*end_gfn = ((block->offset + block->used_length) >> TARGET_PAGE_BITS)-1;
+			printf("block->idstr = %s, block start gfn = %lu, end gfn = %lu\n", block->idstr, *start_gfn, *end_gfn);
+        }
+        //printf("block->idstr = %s, block start gfn = %lu, gfn = %lu\n", block->idstr, (block->offset >> TARGET_PAGE_BITS), gfn);
+       //printf("test final gfn = %lu\n", ((block->offset + block->used_length) >> TARGET_PAGE_BITS)-1);
+    }
+    qemu_mutex_unlock_ramlist();
+}
+
+
+void write_additional_dirty_page(unsigned long start_gfn, unsigned long end_gfn)
+{
+	int i;
+	uint8_t *ptr;
+	//printf("start_gfn = %lu, address = %p\n", start_gfn, gfn_to_hva(start_gfn));
+
+	for(i = 0; i < (end_gfn - start_gfn + 1); i++){
+		ptr = gfn_to_hva((start_gfn + i));
+		kvm_shmem_mark_page_dirty(ptr, (start_gfn + i));
+		//printf("gfn = %lu, address = %p\n", (start_gfn + i), gfn_to_hva((start_gfn + i)));
+	}
+	printf("start_gfn = %lu, end_gfn = %lu\n", start_gfn, (start_gfn + i)-1);
+}
+
+void write_additional_dirty_page2(void){
+
+	RAMBlock *block;
+	unsigned long start_gfn = 0;
+	unsigned long end_gfn = 0;
+	
+    qemu_mutex_lock_ramlist();
+
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
+		if (!memcmp(block->idstr, "pc.ram", 6))
+			continue;
+        if (!memcmp(block->idstr, "vga.vram", 8))
+            continue;
+		start_gfn = (block->offset >> TARGET_PAGE_BITS);
+		end_gfn = ((block->offset + block->used_length) >> TARGET_PAGE_BITS)-1;
+		printf("block->idstr = %s, block start gfn = %lu, end gfn = %lu\n", block->idstr, start_gfn, end_gfn);
+		write_additional_dirty_page(start_gfn, end_gfn);
+	}
+    qemu_mutex_unlock_ramlist();
+
+	 //write_additional_dirty_page(1043968,1043969);
+	 //write_additional_dirty_page(1044476,1044477);
+	 //write_additional_dirty_page(1044477,1044480);
+	 //write_additional_dirty_page(1048512,1048576);	
+}
+
 #endif

@@ -50,7 +50,34 @@
 static unsigned long trans_serial = 0;
 static unsigned long run_serial = 0;
 static int last_enter = 0;
+static unsigned long current_trans_gfn = 0;
+//static unsigned long vram_start_gfn = 0;
+//static unsigned long vram_end_gfn = 0;
 bool backup_die = false;
+bool fake_ft_mode = true;
+bool trans_ram_mode = true;
+
+//static unsigned long pc_ram_start = 0;
+static unsigned long pc_ram_end = 0;
+/*
+static unsigned long vga_vram_start = 0;
+static unsigned long vga_vram_end = 0;
+static unsigned long acpi_tables_start = 0;
+static unsigned long acpi_tables_end = 0;
+static unsigned long pc_bios_start = 0;
+static unsigned long pc_bios_end = 0;
+static unsigned long virtio_net_pci_start = 0;
+static unsigned long virtio_net_pci_end = 0;
+static unsigned long pc_rom_start = 0;
+static unsigned long pc_rom_end = 0;
+static unsigned long vga_rom_start = 0;
+static unsigned long vga_rom_end = 0;
+static unsigned long table_loader_start = 0;
+static unsigned long table_loader_end = 0;
+static unsigned long acpi_rsdp_start = 0;
+static unsigned long acpi_rsdp_end = 0;
+*/
+
 #ifdef DEBUG_MIGRATION
 #define DPRINTF(fmt, ...) \
     do { printf("migration: " fmt, ## __VA_ARGS__); } while (0)
@@ -2572,9 +2599,12 @@ static void *migration_thread(void *opaque)
     trace_migration_thread_setup_complete();
 
 	if(enable_cuju) {
+
 		printf("Start system memory backup\n");
 		migration_completion(s, current_active_state,
                &old_vm_running, &start_time);
+
+		pc_ram_end = find_max_ram_gfn();
 	}
 
     while (s->state == MIGRATION_STATUS_ACTIVE ||
@@ -2689,6 +2719,17 @@ static void *migration_thread(void *opaque)
 
         assert(!kvmft_set_master_slave_sockets(s, ft_ram_conn_count));
         assert(!kvmft_set_master_slave_sockets(s2, ft_ram_conn_count));
+/*
+        uint64_t pending_size;
+        uint64_t pend_post, pend_nonpost;
+
+        qemu_savevm_state_pending(s->to_dst_file, max_size, &pend_nonpost,
+                                      &pend_post);
+        pending_size = pend_nonpost + pend_post;
+        printf("pending_size = %" PRIu64 "\n", pending_size);
+
+        printf("pend_nonpost = %" PRIu64 " pend_post = %" PRIu64 "\n", pend_nonpost, pend_post);
+*/
 
 		return NULL;
     }
@@ -2735,6 +2776,7 @@ static void *migration_thread(void *opaque)
 
     	rcu_unregister_thread();
     }
+
 
     return NULL;
 }
@@ -3001,6 +3043,7 @@ static void migrate_run(MigrationState *s)
 static void migrate_timer(void *opaque)
 {
     //static unsigned long trans_serial = 0;   put outside
+	//int put_off;
     MigrationState *s = opaque;
 
     assert(s == migrate_get_current());
@@ -3017,14 +3060,54 @@ static void migrate_timer(void *opaque)
     migrate_token_owner = NULL;
 
     s->trans_serial = ++trans_serial;
-
+	
     qemu_mutex_lock_iothread();
     vm_stop_mig();
     qemu_iohandler_ft_pause(true);
 
+    //put_off = get_put_off(s);
+	//printf("put_off 1 = %d\n", put_off);
+
+	if(fake_ft_mode){
+
+	    if(trans_ram_mode){
+			if (current_trans_gfn < (pc_ram_end-200)){
+    		    write_additional_dirty_page(current_trans_gfn,current_trans_gfn+200);
+		        current_trans_gfn = current_trans_gfn + 200;
+		    }
+			else
+			{
+				write_additional_dirty_page((current_trans_gfn-200),pc_ram_end);
+				trans_ram_mode = false;
+				//fake_ft_mode = false;
+				//find_vga_vram_gfn(&vram_start_gfn, &vram_end_gfn);
+				current_trans_gfn = 1036288;
+			}
+		}
+		else
+		{
+			if (current_trans_gfn < (1040383-200)){
+				write_additional_dirty_page(current_trans_gfn,current_trans_gfn+200);
+				current_trans_gfn = current_trans_gfn + 200;
+			}
+			else
+			{
+				write_additional_dirty_page((current_trans_gfn-200),1040383);
+				//write_additional_dirty_page2();
+				//write_additional_dirty_page(1036288,1036388);
+				fake_ft_mode = false;
+			}
+		}
+	}
+
+
+	//put_off = get_put_off(s);
+    //printf("put_off 2 = %d\n", put_off);
+
     s->flush_vs_commit1 = false;
     s->transfer_start_time = time_in_double();
     s->ram_len = 0;
+
     kvm_shmem_send_dirty_kernel(s);
 
     dirty_page_tracking_logs_start_transfer(s);
@@ -3092,4 +3175,9 @@ void kvmft_tick_func(void)
         return;
 
     ft_tick_func();
+}
+
+bool return_fake_ft_mode(void)
+{
+	return fake_ft_mode;
 }

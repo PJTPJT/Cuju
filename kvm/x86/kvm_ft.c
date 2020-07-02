@@ -952,8 +952,8 @@ int kvmft_page_dirty(struct kvm *kvm, unsigned long gfn,
 
     memslot = gfn_to_memslot(kvm, gfn);
     if (unlikely(!memslot)) {
-        printk(KERN_ERR"%s can't find memslot for %lx\n", __func__, gfn);
-        memslots_dump(kvm);
+        //printk(KERN_ERR"%s can't find memslot for %lx\n", __func__, gfn);
+        //memslots_dump(kvm);
         return -ENOENT;
     }
     if (!memslot->lock_dirty_bitmap) {
@@ -2405,9 +2405,11 @@ static int __diff_to_buf(unsigned long gfn, struct page *page1,
     header = (c16x8_header_t *)buf;
     block = buf + sizeof(*header);
 
+	printk("transfer gfn = %lu\n", gfn);
+
     header->gfn = gfn << 12 | 1;
     memset(header->h, 0, sizeof(header->h));
-
+/*
     kernel_fpu_begin();
 
     for (i = 0; i < 4096; i += 32) {
@@ -2424,10 +2426,12 @@ static int __diff_to_buf(unsigned long gfn, struct page *page1,
 		#ifdef ft_debug_mode_enable
         printk("warning: not found diff page\n");
 		#endif
+*/
         memset(header->h, 0xff, 16 * sizeof(__u8));
         memcpy(block, page, 4096);
         block += 4096;
-    }
+
+//    }
 
     kunmap_atomic(backup);
     kunmap_atomic(page);
@@ -3201,6 +3205,7 @@ unsigned long kvm_get_put_off(struct kvm *kvm, int cur_index){
 	struct kvmft_dirty_list *dlist;
     struct kvmft_context *ctx = &kvm->ft_context;
 	dlist = ctx->page_nums_snapshot_k[cur_index];
+	printk("dlist->put_off = %d\n", dlist->put_off);
 	return dlist->put_off;
 }
 

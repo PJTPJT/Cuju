@@ -4490,7 +4490,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     blk_mig_init();
-    //ram_mig_init(); //for fake FT
+    ram_mig_init();
 
     event_tap_init();
 
